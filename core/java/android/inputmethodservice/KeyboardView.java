@@ -606,13 +606,14 @@ public class KeyboardView extends View implements View.OnClickListener {
                 // Turn off drop shadow
                 paint.setShadowLayer(0, 0, 0, 0);
             } else if (key.icon != null) {
+                int iconHeight = key.height;
+                int iconWidth = iconHeight * key.icon.getIntrinsicWidth() / key.icon.getIntrinsicHeight();
                 final int drawableX = (key.width - padding.left - padding.right 
-                                - key.icon.getIntrinsicWidth()) / 2 + padding.left;
+                                - iconWidth) / 2 + padding.left;
                 final int drawableY = (key.height - padding.top - padding.bottom 
-                        - key.icon.getIntrinsicHeight()) / 2 + padding.top;
+                        - iconHeight) / 2 + padding.top;
                 canvas.translate(drawableX, drawableY);
-                key.icon.setBounds(0, 0, 
-                        key.icon.getIntrinsicWidth(), key.icon.getIntrinsicHeight());
+                key.icon.setBounds(0, 0, iconWidth, iconHeight);
                 key.icon.draw(canvas);
                 canvas.translate(-drawableX, -drawableY);
             }

@@ -173,7 +173,7 @@ public final class IconMenuItemView extends TextView implements MenuView.ItemVie
         if (icon != null) {
             
             /* Set the bounds of the icon since setCompoundDrawables needs it. */
-            icon.setBounds(0, 0, icon.getIntrinsicWidth(), icon.getIntrinsicHeight());
+            icon.setBounds(0, 0, icon.getIntrinsicWidth(), 1);
             
             // Set the compound drawables
             setCompoundDrawables(null, icon, null, null);
