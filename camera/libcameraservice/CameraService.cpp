@@ -346,8 +346,8 @@ status_t CameraService::Client::startPreview()
                                            mCameraService.get());
     if (ret == NO_ERROR) {
         mSurface->unregisterBuffers();
-        mSurface->registerBuffers(w,h,w,h,
-                                  PIXEL_FORMAT_YCbCr_420_SP,
+	mSurface->registerBuffers(w,h,w,h,PIXEL_FORMAT_RGB_565,
+	                              //  PIXEL_FORMAT_YCbCr_420_SP,
                                   mHardware->getPreviewHeap());
     }
     else LOGE("mHardware->startPreview() failed with status %d\n",
@@ -568,15 +568,15 @@ void CameraService::Client::yuvPictureCallback(const sp<IMemory>& mem,
 #endif
 
     // Put the YUV version of the snapshot in the preview display.
-    int w, h;
-    CameraParameters params(client->mHardware->getParameters());
-    params.getPictureSize(&w, &h);
+    int w=320, h=240;
+	//    CameraParameters params(client->mHardware->getParameters());
+	//  params.getPictureSize(&w, &h);
 
 //  Mutex::Autolock clientLock(client->mLock);
     if (client->mSurface != 0) {
         client->mSurface->unregisterBuffers();
-        client->mSurface->registerBuffers(w,h,w,h,
-                                          PIXEL_FORMAT_YCbCr_420_SP, heap);
+	    client->mSurface->registerBuffers(w,h,w,h,PIXEL_FORMAT_RGB_565
+	                                      /*PIXEL_FORMAT_YCbCr_420_SP*/, heap);
         client->mSurface->postBuffer(offset);
     }
 

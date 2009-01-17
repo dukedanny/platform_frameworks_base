@@ -21,11 +21,17 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
     CameraHardwareStub.cpp      \
-    FakeCamera.cpp
+    VogueCamera.cpp
 
 LOCAL_MODULE:= libcamerastub
 
 LOCAL_SHARED_LIBRARIES:= libui
+
+LOCAL_WHOLE_STATIC_LIBRARIES += libjpeg
+
+LOCAL_C_INCLUDES += \
+        external/jpeg
+
 
 include $(BUILD_STATIC_LIBRARY)
 endif # USE_CAMERA_STUB
@@ -42,15 +48,20 @@ LOCAL_SRC_FILES:=               \
 LOCAL_SHARED_LIBRARIES:= \
     libui \
     libutils \
-    libcutils
+    libcutils 
+
+LOCAL_WHOLE_STATIC_LIBRARIES += libjpeg
+
+LOCAL_C_INCLUDES += \
+        external/jpeg
 
 LOCAL_MODULE:= libcameraservice
 
-LOCAL_CFLAGS+=-DLOG_TAG=\"CameraService\"
+LOCAL_CFLAGS+=-DLOG_TAG=\"CameraService\" -fpic -fstrict-aliasing 
 
 ifeq ($(USE_CAMERA_STUB), true)
-LOCAL_STATIC_LIBRARIES += libcamerastub
-LOCAL_CFLAGS += -include CameraHardwareStub.h
+LOCAL_STATIC_LIBRARIES += libcamerastub 
+LOCAL_CFLAGS += -include CameraHardwareStub.h 
 else
 LOCAL_SHARED_LIBRARIES += libcamera 
 endif

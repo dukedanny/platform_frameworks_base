@@ -23,7 +23,11 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-#include "CannedJpeg.h"
+
+extern "C" {
+#include "jpeglib.h"
+}
+//#include "CannedJpeg.h"
 
 namespace android {
 
@@ -48,11 +52,11 @@ void CameraHardwareStub::initDefaultParameters()
 {
     CameraParameters p;
 
-    p.setPreviewSize(176, 144);
+    p.setPreviewSize(320, 240);
     p.setPreviewFrameRate(15);
-    p.setPreviewFormat("yuv422sp");
+    p.setPreviewFormat("rgb565");
 
-    p.setPictureSize(kCannedJpegWidth, kCannedJpegHeight);
+    p.setPictureSize(1600,1200);
     p.setPictureFormat("jpeg");
 
     if (setParameters(p) != NO_ERROR) {
@@ -119,6 +123,7 @@ int CameraHardwareStub::previewThread()
         // this assumes the internal state of fake camera doesn't change
         // (or is thread safe)
         FakeCamera* fakeCamera = mFakeCamera;
+	
         
         sp<MemoryBase> buffer = mBuffers[mCurrentPreviewFrame];
         
@@ -159,6 +164,7 @@ status_t CameraHardwareStub::startPreview(preview_callback cb, void* user)
         // already running
         return INVALID_OPERATION;
     }
+	  mFakeCamera->start();
     mPreviewCallback = cb;
     mPreviewCallbackCookie = user;
     mPreviewThread = new PreviewThread(this);
@@ -178,7 +184,7 @@ void CameraHardwareStub::stopPreview()
     if (previewThread != 0) {
         previewThread->requestExitAndWait();
     }
-
+		mFakeCamera->stop();
     Mutex::Autolock lock(mLock);
     mPreviewThread.clear();
 }
@@ -226,32 +232,140 @@ status_t CameraHardwareStub::autoFocus(autofocus_callback af_cb,
     CameraHardwareStub *c = (CameraHardwareStub *)cookie;
     return c->pictureThread();
 }
+static const int  k0 = 298;
+static const int  k1 = 208;
+static const int  k2 = 100;
+static const int  k3 = 409;
+static const int  k4 = 516;
+#define clamp(x) ((unsigned int) x <= 255 ? x : (x < 0 ? 0: 255))
 
 int CameraHardwareStub::pictureThread()
 {
+	FILE *picfile;
     if (mShutterCallback)
         mShutterCallback(mPictureCallbackCookie);
 
+	
     if (mRawPictureCallback) {
         //FIXME: use a canned YUV image!
         // In the meantime just make another fake camera picture.
         int w, h;
-        mParameters.getPictureSize(&w, &h);
-        sp<MemoryHeapBase> heap = new MemoryHeapBase(w * 2 * h);
-        sp<MemoryBase> mem = new MemoryBase(heap, 0, w * 2 * h);
-        FakeCamera cam(w, h);
-        cam.getNextFrameAsYuv422((uint8_t *)heap->base());
+	    //mParameters.getPictureSize(&w, &h);
+	    //  sp<MemoryHeapBase> heap = new MemoryHeapBase(w * 2 * h);
+	    //  sp<MemoryBase> mem = new MemoryBase(heap, 0, w * 2 * h);
+	    //  FakeCamera cam(w, h);
+	    //	    	cam.start();
+	    //  cam.getNextFrameAsYuv422((uint8_t *)heap->base());
+	    //	cam.stop();
+	    
         if (mRawPictureCallback)
-            mRawPictureCallback(mem, mPictureCallbackCookie);
+	             mRawPictureCallback(mBuffers[mCurrentPreviewFrame], mPictureCallbackCookie);
     }
-
+	
+	
+	picfile=fopen("/sdroot/picture.jpg","wb");
+	if(!picfile) 
+		LOGE("Can't open temporary picture file");
+	else {
+		struct jpeg_compress_struct cinfo;
+		struct jpeg_error_mgr jerr;
+		JSAMPROW row_pointer[1];
+		int cam_dev;
+		char *image_buffer;
+		int imagesize=1600*1200+1600*1200/2;
+		
+		int row_stride;
+		int w, h,i;
+		int filesize;
+		char line[1600*3];
+		int ready;
+		char *frame;//(char *)mHeap->base()+mCurrentPreviewFrame * mPreviewFrameSize;
+		char *uvframe;
+		short pixel;
+      LOGI("Opening Camera device"); 
+		cam_dev=open("/dev/camera",O_RDONLY);
+		LOGI("Mmaping fb"); 
+		image_buffer=(char *)mmap(NULL,imagesize,PROT_READ,MAP_SHARED,cam_dev,0);
+		frame=image_buffer;
+		LOGI("Reading frame"); 
+		read(cam_dev,&ready,4);
+		LOGI("Sending small snapshot");
+		if (mRawPictureCallback) {
+			int w=320, h=240;
+			sp<MemoryHeapBase> heap = new MemoryHeapBase(w * 2 * h);
+			sp<MemoryBase> mem = new MemoryBase(heap, 0, w * 2 * h);
+			mFakeCamera->getRawSnapshot((uint8_t *)heap->base());
+			if (mRawPictureCallback)
+							mRawPictureCallback(mem, mPictureCallbackCookie);
+      }
+		mParameters.getPictureSize(&w, &h);
+		uvframe=frame+w*h;
+		LOGI("Writing %d x %d JPEG",w,h); 
+		cinfo.err = jpeg_std_error(&jerr);
+		jpeg_create_compress(&cinfo);
+		jpeg_stdio_dest(&cinfo, picfile);
+		cinfo.image_width = w;
+		cinfo.image_height = h;
+		cinfo.input_components = 3;
+		cinfo.in_color_space = JCS_RGB;
+		jpeg_set_defaults(&cinfo);
+		jpeg_set_quality(&cinfo, 85, TRUE); // quality of 80
+		jpeg_start_compress(&cinfo, TRUE);
+		//		row_stride = w;
+		while (cinfo.next_scanline < cinfo.image_height) {
+			//			LOGI("line %d\n",cinfo.next_scanline);
+			for(i=0;i<w;i++) {
+				int y,u,v,r,g,b,gp,rp,bp;
+				/* for yuv
+				line[i*3]=*(frame+cinfo.next_scanline*w+i);
+				line[i*3+1]=*(uvframe+(cinfo.next_scanline/2)*w+(i/2)*2);
+				line[i*3+2]=*(uvframe+(cinfo.next_scanline/2)*w+(i/2)*2+1);
+				*/
+				// for rgb_565
+				/*
+				pixel=*((short *)frame+cinfo.next_scanline*w+i);
+				line[i*3]=(pixel&0xf800)>>8;
+				line[i*3+1]=(pixel&0x07e0)>>3;
+				line[i*3+2]=(pixel&0x01f)<<3;
+				*/
+				// convert yuv to rgb for jpeg compression
+				y=(*(frame+cinfo.next_scanline*w+i)-16)*k0;
+				u=*(uvframe+(cinfo.next_scanline/2)*w+(i/2)*2)-128;
+				v=*(uvframe+(cinfo.next_scanline/2)*w+(i/2)*2+1)-128;
+				gp=(k1*v)+(k2*u);
+				bp=(k3*v);
+				rp=(k4*u);
+				r=(y+rp)>>8;
+				g=(y-gp)>>8;
+				b=(y+bp)>>8;
+				line[i*3]=clamp(r);
+				line[i*3+1]=clamp(g);
+				line[i*3+2]=clamp(b);
+			}
+			row_pointer[0] = (JSAMPLE *)line;//(frame+(cinfo.next_scanline * row_stride));
+    	(void) jpeg_write_scanlines(&cinfo, row_pointer, 1);
+			//			LOGI("write_scnlines done");
+  	}
+		LOGI("JPEG Written"); 
+		jpeg_finish_compress(&cinfo);
+		filesize=ftell(picfile);
+		fclose(picfile);
+		close(cam_dev);
+		jpeg_destroy_compress(&cinfo);
     if (mJpegPictureCallback) {
-        sp<MemoryHeapBase> heap = new MemoryHeapBase(kCannedJpegSize);
-        sp<MemoryBase> mem = new MemoryBase(heap, 0, kCannedJpegSize);
-        memcpy(heap->base(), kCannedJpeg, kCannedJpegSize);
+  		sp<MemoryHeapBase> heap = new MemoryHeapBase(filesize);
+  		sp<MemoryBase> mem = new MemoryBase(heap, 0, filesize);
+  		picfile=fopen("/sdroot/picture.jpg","rb");
+	    if(!picfile)
+					LOGE("Can't open temporary picture file for reading");
+	    else {
+		    fread((uint8_t *)heap->base(),1,filesize,picfile);
+		    fclose(picfile); 
         if (mJpegPictureCallback)
             mJpegPictureCallback(mem, mPictureCallbackCookie);
+	    }
     }
+	}
     return NO_ERROR;
 }
 
@@ -303,24 +417,25 @@ status_t CameraHardwareStub::setParameters(const CameraParameters& params)
     Mutex::Autolock lock(mLock);
     // XXX verify params
 
-    if (strcmp(params.getPreviewFormat(), "yuv422sp") != 0) {
-        LOGE("Only yuv422sp preview is supported");
-        return -1;
-    }
+//    if (strcmp(params.getPreviewFormat(), "yuv422sp") != 0) {
+//        LOGE("Only yuv422sp preview is supported");
+//        return -1;
+//    }
 
-    if (strcmp(params.getPictureFormat(), "jpeg") != 0) {
-        LOGE("Only jpeg still pictures are supported");
-        return -1;
-    }
+//    if (strcmp(params.getPictureFormat(), "jpeg") != 0) {
+//        LOGE("Only jpeg still pictures are supported");
+//        return -1;
+//    }
 
     int w, h;
     params.getPictureSize(&w, &h);
+	/*
     if (w != kCannedJpegWidth && h != kCannedJpegHeight) {
         LOGE("Still picture size must be size of canned JPEG (%dx%d)",
              kCannedJpegWidth, kCannedJpegHeight);
         return -1;
     }
-
+*/
     mParameters = params;
 
     initHeapLocked();

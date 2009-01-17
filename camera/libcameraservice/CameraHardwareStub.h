@@ -18,7 +18,7 @@
 #ifndef ANDROID_HARDWARE_CAMERA_HARDWARE_STUB_H
 #define ANDROID_HARDWARE_CAMERA_HARDWARE_STUB_H
 
-#include "FakeCamera.h"
+#include "VogueCamera.h"
 #include <utils/threads.h>
 #include <ui/CameraHardwareInterface.h>
 #include <utils/MemoryBase.h>
