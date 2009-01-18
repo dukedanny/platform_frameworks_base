@@ -123,5 +123,7 @@
             file="/system/framework/android.test.runner.jar" />
     <library name="com.android.im.plugin"
             file="/system/framework/com.android.im.plugin.jar"/>          
+    <library name="com.google.android.maps"
+            file="/system/framework/com.google.android.maps.jar"/>
 
 </permissions>
