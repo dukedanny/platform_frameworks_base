@@ -19,6 +19,7 @@ package android.widget;
 import android.annotation.Widget;
 import android.content.Context;
 import android.util.AttributeSet;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -50,6 +51,9 @@ public class ZoomControls extends LinearLayout {
         inflater.inflate(R.layout.zoom_controls, this, // we are the parent
                 true);
         
+        setBackgroundResource(R.drawable.zoom_plate);
+        setGravity(Gravity.BOTTOM);
+        setPadding(12, 0, 12, 0);
         mZoomIn = (ZoomButton) findViewById(R.id.zoomIn);
         mZoomOut = (ZoomButton) findViewById(R.id.zoomOut);
     }
